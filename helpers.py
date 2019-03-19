@@ -1,6 +1,8 @@
 import requests
 from datetime import datetime
+from threading import Thread
 from config import es
+
 
 def make_request(url, username):
 
@@ -38,21 +40,24 @@ def get_recent(username):
 
     ids = ''
     for item in js['items']:
+        track = item.get('track')
+        # track = item.pop('track')
+        es.index('simple-track', doc_type='_doc', id=track['id'], body=track)
+        ids += track['id'] + ','
+
         try:
             dt = datetime.strptime(item['played_at'], '%Y-%m-%dT%H:%M:%S.%fZ')
         except ValueError:
             dt = datetime.strptime(item['played_at'], '%Y-%m-%dT%H:%M:%SZ')
-
         ms = str(int(dt.timestamp() * 1000))
 
-        es.index('simple-track', doc_type='_doc', id=item['track']['id'], body=item['track'])
-        ids += item['track']['id'] + ','
-
         item['played_by'] = username
-        es.index('recent', doc_type='_doc', id=username+':'+ms+':'+item['track']['id'], body=item)
+        # item['track_id'] = track['id']
+        es.index('recent', doc_type='_doc', id=username+':'+ms+':'+track['id'], body=item)
+        item['track'] = track
 
     if ids:
-        get_features(username, ids[:-1])
+        Thread(target=get_features, args=(username, ids[:-1])).start()
     return js
 
 
@@ -130,6 +135,6 @@ def get_messages(username, friend):
                 "query": '((from:'+username+' AND to:'+friend+') OR (from:'+friend+' AND to:'+username+'))'
             }
         },
-        'sort': {'timestamp': {'order': 'asc'}}
+        'sort': {'timestamp': {'order': 'desc'}}
     }
     return es.search('messages', '_doc', body=query)['hits']['hits']

@@ -17,7 +17,7 @@ def recents():
         get_recent(user['_id'])
 
 # schedule.every(10).minutes.do(recents)
-schedule.every(2).hours.do(recents)
+schedule.every().hour.do(recents)
 
 while True:
     schedule.run_pending()
